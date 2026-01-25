@@ -1,0 +1,27 @@
+name: Fixpoint
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  fixpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Fixpoint - Auto-Fix Security Vulnerabilities
+        uses: IWEBai/fixpoint@v1
+        with:
+          mode: warn  # Change to "enforce" to auto-fix
+          base_branch: ${{ github.base_ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
