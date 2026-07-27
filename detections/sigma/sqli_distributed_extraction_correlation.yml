@@ -1,0 +1,54 @@
+# Sigma correlation rule — requires a backend supporting the 'correlation' schema (pySigma >= 0.10)
+title: Distributed SQL Injection Extraction from VPS Fleet (ByteToBreach Parallelization)
+id: c385ecd7-4fcf-468c-9e08-660e71909aa6
+status: experimental
+description: |
+    ByteToBreach parallelized time-based blind SQLi across ~20 rented VPS in several European
+    countries to beat per-IP rate limits and speed extraction. This correlation rule flags the
+    macro-pattern: the same injection signature hitting one target host from many distinct source
+    IPs inside a short window — the signal a single-request rule misses. Base event is the
+    time-based SQLi detection.
+references:
+    - https://api.threatstream.com/api/v1/actor/1099092/
+    - https://attack.mitre.org/techniques/T1583/003/
+author: fixpoint-demo threat-intel
+date: 2026-07-27
+tags:
+    - attack.initial-access
+    - attack.t1190
+    - attack.resource-development
+    - attack.t1583.003
+logsource:
+    category: webserver
+detection:
+    sqli_probe:
+        cs-uri-query|contains:
+            - 'sleep('
+            - 'pg_sleep('
+            - 'waitfor delay'
+            - 'benchmark('
+            - "' or '1'='1"
+            - "' or 1=1"
+        # also flag high SQL error rates (500s) as a boolean/error oracle
+    error_oracle:
+        sc-status: 500
+    condition: sqli_probe or error_oracle
+fields:
+    - c-ip
+    - cs-host
+    - cs-uri-query
+---
+title: Distributed SQLi Extraction - Correlation
+id: 31f3961f-6316-4a8e-bc07-da51166a2a2e
+status: experimental
+correlation:
+    type: value_count
+    rules:
+        - c385ecd7-4fcf-468c-9e08-660e71909aa6
+    group-by:
+        - cs-host
+    timespan: 10m
+    condition:
+        gte: 8            # >=8 distinct source IPs hitting one host with SQLi signatures / errors
+        field: c-ip
+level: high

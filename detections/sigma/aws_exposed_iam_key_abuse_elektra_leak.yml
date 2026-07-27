@@ -1,0 +1,50 @@
+title: Exposed AWS IAM Key Abuse - Rapid Recon + EC2 Spin-Up (EleKtra-Leak)
+id: 0877b4aa-9520-4021-b14c-174850948179
+status: experimental
+description: |
+    Detects the EleKtra-Leak / "CloudKeys in the Air" pattern: a leaked long-lived AKIA key
+    (e.g. the hardcoded AWS_ACCESS_KEY_ID in config.py) is picked up by automation and abused
+    within ~5 minutes. Signature is an access-key identity performing a GetCallerIdentity /
+    account-enumeration call immediately followed by RunInstances for cryptojacking-scale compute,
+    especially GPU/compute-optimized families or unusual regions.
+references:
+    - https://api.threatstream.com/api/v1/tipreport/27691346/  # CloudKeys in the Air / EleKtra-Leak (Unit 42)
+    - https://attack.mitre.org/techniques/T1552/001/
+    - https://attack.mitre.org/techniques/T1078/004/
+    - https://attack.mitre.org/techniques/T1496/
+author: fixpoint-demo threat-intel
+date: 2026-07-27
+tags:
+    - attack.credential-access
+    - attack.t1552.001
+    - attack.initial-access
+    - attack.t1078.004
+    - attack.impact
+    - attack.t1496
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    recon:
+        eventName:
+            - 'GetCallerIdentity'
+            - 'DescribeInstances'
+            - 'DescribeRegions'
+            - 'ListBuckets'
+            - 'GetAccountAuthorizationDetails'
+    impact_runinstances:
+        eventName: 'RunInstances'
+    long_lived_key:
+        userIdentity.accessKeyId|startswith: 'AKIA'   # long-term key, not a temporary ASIA session token
+    condition: long_lived_key and (recon or impact_runinstances)
+fields:
+    - userIdentity.accessKeyId
+    - userIdentity.arn
+    - eventName
+    - sourceIPAddress
+    - awsRegion
+    - requestParameters.instanceType
+falsepositives:
+    - Legitimate automation using long-lived keys (migrate these to roles; then tune out their ARNs)
+    - CI/CD provisioning from known source ranges
+level: high

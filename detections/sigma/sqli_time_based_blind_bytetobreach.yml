@@ -1,0 +1,45 @@
+title: Time-Based Blind SQL Injection Extraction (ByteToBreach Fingerprint)
+id: 4e6178c3-5996-42b8-a9e1-ee46f9302417
+status: experimental
+description: |
+    Detects time-based blind SQL injection payloads in HTTP request URIs/bodies — the
+    extraction technique ByteToBreach used against Eurofiber's GLPI instance (slow, time-based
+    SQL queries to exfiltrate ~10,000 password hashes over ten days). Fires on SQL time-delay
+    primitives (SLEEP, pg_sleep, WAITFOR DELAY, BENCHMARK) that have no legitimate reason to
+    appear in user-supplied request data. Maps to sinks V1-V4 in app.py.
+references:
+    - https://api.threatstream.com/api/v1/actor/1099092/  # ByteToBreach (SOCRadar)
+    - https://attack.mitre.org/techniques/T1190/
+author: fixpoint-demo threat-intel
+date: 2026-07-27
+tags:
+    - attack.initial-access
+    - attack.t1190
+    - attack.collection
+    - attack.t1213
+    - detection.threat-hunting
+logsource:
+    category: webserver
+detection:
+    selection_timedelay:
+        - cs-uri-query|contains:
+            - 'sleep('
+            - 'pg_sleep('
+            - 'waitfor delay'
+            - 'benchmark('
+            - 'dbms_pipe.receive_message'
+        - c-uri|contains:
+            - 'sleep('
+            - 'pg_sleep('
+            - 'waitfor delay'
+            - 'benchmark('
+    condition: selection_timedelay
+fields:
+    - c-ip
+    - c-uri
+    - cs-uri-query
+    - cs-user-agent
+falsepositives:
+    - Application performance/monitoring tooling that legitimately references these keywords
+    - Security scanners run by the blue team (correlate with authorized scan windows)
+level: high

@@ -1,0 +1,55 @@
+title: WAF-Bypass SQL Injection via Double Encoding / xp_cmdshell (Operation Cleaver TTP)
+id: d20fb509-2e9a-4f60-8168-a6ae9c51633e
+status: experimental
+description: |
+    Detects SQL injection attempts that use double URL-encoding to evade WAF signatures and/or
+    attempt the SQLi->RCE bridge via xp_cmdshell and sp_configure — the exact tradecraft documented
+    for Operation Cleaver. Double-encoding manifests as %25xx sequences (an encoded '%'); the
+    xp_cmdshell/sp_configure/RECONFIGURE tokens indicate an attempt to enable OS command execution
+    from an injection foothold.
+references:
+    - https://api.threatstream.com/api/v1/tipreport/27814778/  # Operation Cleaver
+    - https://attack.mitre.org/techniques/T1190/
+    - https://attack.mitre.org/techniques/T1059/
+author: fixpoint-demo threat-intel
+date: 2026-07-27
+tags:
+    - attack.initial-access
+    - attack.t1190
+    - attack.execution
+    - attack.t1059
+    - attack.defense-evasion
+    - attack.t1027
+logsource:
+    category: webserver
+detection:
+    selection_cmdexec:
+        - cs-uri-query|contains:
+            - 'xp_cmdshell'
+            - 'sp_configure'
+            - 'show advanced options'
+            - 'reconfigure'
+        - c-uri|contains:
+            - 'xp_cmdshell'
+            - 'sp_configure'
+    selection_double_encode:
+        cs-uri-query|contains:
+            - '%2527'   # double-encoded single quote
+            - '%2520'   # double-encoded space
+            - '%253b'   # double-encoded semicolon
+            - '%2528'   # double-encoded (
+    selection_sqli_context:
+        cs-uri-query|contains:
+            - 'union'
+            - 'select'
+            - 'declare'
+            - 'exec'
+    condition: selection_cmdexec or (selection_double_encode and selection_sqli_context)
+fields:
+    - c-ip
+    - c-uri
+    - cs-uri-query
+    - cs-user-agent
+falsepositives:
+    - Rare; double-encoded SQL keywords in request data are almost always malicious
+level: critical

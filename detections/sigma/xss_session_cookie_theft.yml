@@ -1,0 +1,58 @@
+title: XSS Payload Indicating Session/Credential Theft (Non-<script> Vectors)
+id: 889c6172-6c0b-4e43-af93-a7babb2f4ceb
+status: experimental
+description: |
+    Detects cross-site scripting payloads aimed at session and credential theft rather than
+    benign alert() proofs — the modern XSS->XSRF chain (attackpattern-29315) that steals cookies,
+    reads saved browser credentials, and rides sessions via CSRF. Deliberately covers non-<script>
+    vectors (event-handler and javascript: URI based) because the referenced tradecraft avoids the
+    <script> tag entirely. Targets the mark_safe()/SafeString() sinks in views.py (V6), where a
+    stored bio/comment payload executes in an admin's browser origin.
+references:
+    - https://api.threatstream.com/api/v1/attackpattern/29315/  # XSS -> XSRF credential-theft chain
+    - https://attack.mitre.org/techniques/T1059/007/
+    - https://attack.mitre.org/techniques/T1539/
+author: fixpoint-demo threat-intel
+date: 2026-07-27
+tags:
+    - attack.execution
+    - attack.t1059.007
+    - attack.credential-access
+    - attack.t1539
+    - attack.collection
+    - attack.t1185
+logsource:
+    category: webserver
+detection:
+    selection_cookie_theft:
+        - cs-uri-query|contains:
+            - 'document.cookie'
+            - 'document.domain'
+            - 'localstorage'
+            - 'new image().src'
+            - '.credentials'
+    selection_nonscript_vectors:
+        cs-uri-query|contains:
+            - 'onerror='
+            - 'onload='
+            - 'onmouseover='
+            - 'onfocus='
+            - '<svg'
+            - 'javascript:'
+            - '<iframe'
+    selection_exfil_sink:
+        cs-uri-query|contains:
+            - 'http://'
+            - 'https://'
+            - '//'                 # protocol-relative exfil beacon
+    condition: selection_cookie_theft or (selection_nonscript_vectors and selection_exfil_sink)
+fields:
+    - c-ip
+    - c-uri
+    - cs-uri-query
+    - cs-referer
+    - cs-user-agent
+falsepositives:
+    - Rich-text editors / CMS fields that legitimately post HTML (scope to unauthenticated or comment endpoints)
+    - Security scanners in authorized windows
+level: high
